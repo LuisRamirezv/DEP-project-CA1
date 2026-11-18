@@ -233,6 +233,110 @@ for (variable in sales_columns) {
 # This explain the new NA values.
 
 
+##===========================================================================##
+## Correcting data types
+##===========================================================================##
+
+# Sales variables that need numeric conversion.
+
+sales_columns <- c(
+  "RETAIL.SALES",
+  "RETAIL.TRANSFERS",
+  "WAREHOUSE.SALES"
+)
+
+# Function to clean accounting-formatted numbers.
+
+clean_numeric <- function(x) {
+  
+  # Convert values to character and remove spaces.
+  x <- trimws(as.character(x))
+  
+  # Convert empty strings into NA.
+  x[x == ""] <- NA
+  
+  # Identify negative values represented by brackets.
+  negative <- !is.na(x) & grepl("^\\(.*\\)$", x)
+  
+  # Remove brackets and thousands separators.
+  x <- gsub("[(),]", "", x)
+  
+  # Convert values into numeric format.
+  x <- suppressWarnings(as.numeric(x))
+  
+  # Restore negative signs.
+  x[negative] <- -abs(x[negative])
+  
+  return(x)
+}
+
+# Apply the function to the original dataset.
+# This avoids using values already incorrectly converted.
+
+df_clean <- df %>%
+  mutate(
+    SUPPLIER = na_if(trimws(as.character(SUPPLIER)), ""),
+    SUPPLIER = replace_na(SUPPLIER, "Unknown"),
+    across(all_of(sales_columns), clean_numeric)
+  ) %>%
+  filter(
+    !is.na(ITEM.TYPE),
+    trimws(ITEM.TYPE) != ""
+  )
+
+##===========================================================================##
+## VERIFYING DATA TYPES
+##===========================================================================##
+
+# Check numerical summaries.
+
+df_clean %>%
+  select(all_of(sales_columns)) %>%
+  summary()
+
+# Output summary.
+#   RETAIL.SALES      RETAIL.TRANSFERS   WAREHOUSE.SALES   
+# Min.   :  -6.490   Min.   : -38.490   Min.   :-7800.00  
+# 1st Qu.:   0.000   1st Qu.:   0.000   1st Qu.:    0.00  
+# Median :   0.250   Median :   0.000   Median :    1.00  
+# Mean   :   6.913   Mean   :   6.867   Mean   :   25.58  
+# 3rd Qu.:   3.260   3rd Qu.:   3.000   3rd Qu.:    5.00  
+# Max.   :2923.000   Max.   :1990.830   Max.   :18317.00  
+# NAs    :7  
+
+# Comparison of numerical summaries
+# After correcting the numeric conversion, the results changed
+# significantly compared with the original summary
+
+# The original conversion using as.numeric() incorrectly interpreted
+# values containing thousands separatos and accounting- format
+# negative numbers as missing values
+
+# The new clean_numeric() function successfully corrected there
+# formatting issues.
+
+# As a result, the number of missing values decreased considerably:
+# RETAIL.SALES: 163 to 7
+# RETAIL.TRANSFERS: 1073 to 0
+# WAREHOUSE.SALES: 2205 to 0
+
+# The corrected summary also identified larger maximum values
+# and negative observations that were not correctly recognized before
+
+# The remaining seven missing values belong to RETAIL.SALES, and I will keep
+# as NA to avoid introducing incorrect assumptions into the dataset.
+
+
+##===========================================================================##
+## Handling outliers
+##===========================================================================##
+
+
+
+
+
+
+
 
 
 
