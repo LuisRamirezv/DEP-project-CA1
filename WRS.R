@@ -23,7 +23,7 @@ library(skimr)
 ## Loading the dataset into df to process.
 
 # Importing the Warehouse and Retail Sales dataset.
-df <- read.csv("Warehouse_and_Retail_Sales.csv", header = TRUE)
+df <- read.csv("WRS.csv", header = TRUE)
 
 dim(df) # Number of rows and columns
 colnames(df) # Names of the columns
@@ -43,87 +43,37 @@ summary(df)
 # Showing only the columns that contain missing values.
 Filter(function(x) x > 0, colSums(is.na(df)))
 
-## Handling missing values:
+# The output is "named numeric(0)", meaning none of the columns contains NA values
 
-# Calculating the percentage of missing values in each column.
-
+# Checking by columns
 n <- nrow(df)
 
 round(colSums(is.na(df)) / n * 100, 3)
 
-# The percentage of missing data helps determine how much information
-# is missing from each variable and whether it could affect the analysis.
+# all nine columns contain 0% missing values
+# Therefore, it is necessary to investigate blank values separately.
 
-# Creating a clean version of the original dataset.
+## Checking blank values
+# Counting blanc values in each column
 
-df_clean <- df
+blank_counts <- sapply(df, function(x) {
+  sum(trimws(as.character(x)) == "", na.rm = TRUE)
+})
 
-# Checking the missing values in the dataset.
-# The variables supplier, item_description and item_type are categorical.
-# The variables rtl_sales, rtl_transfers and whs_sales represent
-# sales and movement quantities.
+# Showing only the columns containing blank values
 
-# Replacing missing categorical values with "Unknown".
-# This avoids deleting observations simply because a category is missing.
+Filter(function(x) x > 0, blank_counts)
 
-df_clean <- df_clean %>%
-  mutate(
-    supplier = replace_na(as.character(supplier), "Unknown"),
-    item_description = replace_na(as.character(item_description), "Unknown"),
-    item_type = replace_na(as.character(item_type), "Unknown")
-  )
+# output:
+#     SUPPLIER    ITEM.TYPE RETAIL.SALES 
+#          217            1            7 
 
-# Checking the numerical columns for missing values.
+# Calculating the percentage of blank values in each column.
 
-round(
-  colSums(is.na(df_clean)) / nrow(df_clean) * 100,
-  3
-)
+round(blank_counts / n * 100, 3)
+# Output
+# 
 
-# Removing observations with missing information in the variables
-# required for the analysis.
-
-df_clean <- df_clean %>%
-  filter(
-    !is.na(calendar_year),
-    !is.na(cal_month_num),
-    !is.na(item_code),
-    !is.na(rtl_sales),
-    !is.na(rtl_transfers),
-    !is.na(whs_sales)
-  )
-
-# Checking the missing values again.
-
-round(
-  colSums(is.na(df_clean)) / nrow(df_clean) * 100,
-  3
-)
-
-# Checking the dimensions after handling missing values.
-
-dim(df_clean)
-
-##===========================================================================##
-## Checking and correcting data types
-##===========================================================================##
-
-# The sales and transfer variables should be numeric.
-# Calendar year and month should also be numeric.
-
-df_clean <- df_clean %>%
-  mutate(
-    calendar_year = as.integer(calendar_year),
-    cal_month_num = as.integer(cal_month_num),
-    item_code = as.character(item_code),
-    rtl_sales = as.numeric(rtl_sales),
-    rtl_transfers = as.numeric(rtl_transfers),
-    whs_sales = as.numeric(whs_sales)
-  )
-
-# Checking the data types again.
-
-glimpse(df_clean)
 
 ##===========================================================================##
 ## Handling outliers
@@ -142,8 +92,8 @@ glimpse(df_clean)
 
 ## Checking the data summary of the sales variables.
 
-df_clean %>%
-  select(rtl_sales, rtl_transfers, whs_sales) %>%
+df %>%
+  select(RETAIL.SALES, RETAIL.TRANSFERS, WAREHOUSE.SALES) %>%
   summary()
 
 # The summary provides the minimum, maximum, mean, median and quartiles
