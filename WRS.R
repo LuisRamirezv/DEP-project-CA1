@@ -17,6 +17,7 @@
 # Installing packages
 install.packages(c("tidyverse", "skimr"))
 
+library(ggplot2)
 library(tidyverse)
 library(skimr)
 
@@ -133,34 +134,103 @@ dim(df_clean)
 # the dimension are the same that in the beginning
 
 ##===========================================================================##
-## Handling outliers
+## Changing data types
 ##===========================================================================##
+# Check the numerical summary before change it.
+
+df_clean %>%
+  select(RETAIL.SALES, RETAIL.TRANSFERS, WAREHOUSE.SALES) %>%
+  summary()
+
+# Converting sales variables into numeric format.
+
+df_clean <- df_clean %>%
+  mutate(
+    across(
+      c(RETAIL.SALES, RETAIL.TRANSFERS, WAREHOUSE.SALES),
+      as.numeric
+    )
+  )
+
+# This output confirms that the data types are now correct, and the three sales
+# variables are numerical, so I can use it for the outlier analysis.
+
+# Check the numerical summary
+df_clean %>%
+  select(RETAIL.SALES, RETAIL.TRANSFERS, WAREHOUSE.SALES) %>%
+  summary()
+
+# Output
+#   RETAIL.SALES     RETAIL.TRANSFERS  WAREHOUSE.SALES
+# Min.   :  0.000   Min.   :  0.000   Min.   :  0.0  
+# 1st Qu.:  0.000   1st Qu.:  0.000   1st Qu.:  0.0  
+# Median :  0.250   Median :  0.000   Median :  1.0  
+# Mean   :  6.749   Mean   :  6.763   Mean   : 14.4  
+# 3rd Qu.:  3.260   3rd Qu.:  3.000   3rd Qu.:  5.0  
+# Max.   :992.000   Max.   :991.000   Max.   :999.8  
+# NAs    :163       NAs    :1073      NAs    :2205
+
+# RETAIL.SALES Output conclusions.
+# At least, 25% of the observations have zero sales 
+# The mean (6.749) is considerably higher than the median (0.25)
+# The maximum is 992, suggesting some unusually high observations.
+# there are 163 missing values
+
+# RETAIL.TRANSFERS Output conclusions.
+# at least 50% of the observations have zero transfers
+# the mean is 6.763, while the median is zero
+# there are 1073 missing values
+
+# WAREHOUSE.SALES Output conclusions.
+# at least 25% of observations have zero sales
+# the mean is 14.4 compared with a median of 1
+# there are 2205 missing values.
+
+# The differences between the means and medians suggest that the distributions
+# are strongly right-skewed
+
+# An important fact here is the missing values appeared again.
+# Although I previously handled blank values, this summaries now identifies:
+# 163 missing values in RETAIL.SALES (0.046)
+# 1039 missing values in RETAIL.TRANSFERS (0.304%)
+# 2188 missing values in WAREHOUSE.SALES (0.626%)
 
 
+# Checking values that cannot be converted into numeric format.
+
+sales_columns <- c(
+  "RETAIL.SALES",
+  "RETAIL.TRANSFERS",
+  "WAREHOUSE.SALES"
+)
+
+# Sales variables that need numeric conversion.
+
+for (variable in sales_columns) {
+  
+  original_values <- trimws(as.character(df[[variable]]))
+  
+  invalid_values <- unique(
+    original_values[
+      !is.na(original_values) &
+        original_values != "" &
+        is.na(suppressWarnings(as.numeric(original_values)))
+    ]
+  )
+  
+  cat("\nVariable:", variable, "\n") # Printing each variable with their values
+  print(invalid_values)
+}
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+## CHALLENGE.
+# The oputput shows the actual problem with the dataset. The missing values
+# were not simply blank cells. The numeric conversion that I did before
+# interpreted some valid sales values as missing.
+# For example, thousands separators can not be converted directly
+# Negative values in brackets "(0.01)" represents -0.01 in accounting format
+# but R does not automatically recognize this as a negative number.
+# This explain the new NA values.
 
 
 
