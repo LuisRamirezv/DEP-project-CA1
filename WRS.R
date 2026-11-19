@@ -133,6 +133,8 @@ Filter(function(x) x > 0, blank_counts_clean)
 dim(df_clean)
 # the dimension are the same that in the beginning
 
+
+
 ##===========================================================================##
 ## Changing data types
 ##===========================================================================##
@@ -493,12 +495,10 @@ ggplot(alcohol, aes(x = reorder(ITEM.TYPE, -Total_Sales), y = Total_Sales)) +
   labs(title = "Total retail sales by alcohol type",
        x = "Alcohol type", y = "Total retail sales") +
   theme_minimal()
-
+## Liquor refers to Spirit drinks
 
 alcohol <- arrange(alcohol, desc(Total_Sales))
 alcohol   # prints the quantity of each type
-
-# Liquor refers to Spirit drinks
 
 # Q2 How many records are there in each year?
 ggplot(df_clean, aes(x = factor(YEAR))) +
@@ -508,22 +508,98 @@ ggplot(df_clean, aes(x = factor(YEAR))) +
   labs(title = "Number of records per year", x = "Year", y = "Records") +
   theme_minimal() 
 
-
-
 ## Variations between two variables
 
+# Q3. when more stock is sent to the stores (transfer), do the stores sell more?
 
-# Q4. Are retail sales related to retail transfers?
-# Only positive values, with a random sample of 20000 points.
-scatter_data <- subset(df_no_outliers, RETAIL.SALES > 0 & RETAIL.TRANSFERS > 0)
+data1 <- subset(df_no_outliers, RETAIL.SALES > 0 & RETAIL.TRANSFERS > 0)
 set.seed(123)
-scatter_data <- slice_sample(scatter_data, n = 20000)
+data1 <- slice_sample(data1, n = 20000)
 
-ggplot(scatter_data, aes(RETAIL.TRANSFERS, RETAIL.SALES)) +
+ggplot(data1, aes(RETAIL.TRANSFERS, RETAIL.SALES)) +
   geom_point(alpha = 0.15, colour = "steelblue") +
   geom_smooth(method = "lm", colour = "tomato", se = FALSE) +
   scale_x_log10() +
   scale_y_log10() +
-  labs(title = "Q4. Retail sales vs retail transfers (log10)") +
+  labs(title = "Retail sales vs retail transfers (log10)",
+       x = "Retail transfers", y = "Retail sales") +
   theme_minimal()
+
+cor(data1$RETAIL.SALES, data1$RETAIL.TRANSFERS, method = "spearman")
+
+# Observation: 
+# There is a positive relationship between te high stock send to the stores and
+# the sell. As the transfer increase, the retail sales increase.
+# The red line is close to 45 angles degrees on the log scale, so sales grow 
+# roughly in step with transfers.But transfers alone do not predict sales precisely
+# Since many records sold much more or much less than the line suggests.
+
+# Q4. Do the products that sell well in the stores also sell well from the warehouse?
+
+data2 <- subset(df_no_outliers, RETAIL.SALES > 0 & WAREHOUSE.SALES > 0)
+set.seed(123)
+data2 <- slice_sample(data2, n = 20000)
+
+ggplot(data2, aes(RETAIL.SALES, WAREHOUSE.SALES)) +
+  geom_point(alpha = 0.15, colour = "steelblue") +
+  geom_smooth(method = "lm", colour = "tomato", se = FALSE) +
+  scale_x_log10() +
+  scale_y_log10() +
+  labs(title = "Warehouse sales vs retail sales (log10)",
+       x = "Retail sales", y = "Warehouse sales") +
+  theme_minimal()
+
+# Observation: 
+# The plot shows a weak positive relationship. Products that sell more in stores
+# sell only slightly more from the warehouse, and the dots are spread across
+# the whole plot.
+# 
+
+## Unusual patterns
+
+# Which item types have negative values?
+neg <- subset(df_clean, RETAIL.SALES < 0 | RETAIL.TRANSFERS < 0 | WAREHOUSE.SALES < 0)
+
+ggplot(neg, aes(x = fct_infreq(ITEM.TYPE))) +
+  geom_bar(fill = "tomato") +
+  labs(title = "Records with negative values by item type",
+       x = "Item type", y = "Records") +
+  theme_minimal()
+
+nrow(neg)   # total records with a negative value
+
+# Observation: 
+# the plot shows that negative values appear in evey item, but they are
+# concentrated in whine, which has more than twice as many as any other 
+# type. Those negative sales and transfer could be possible returns or 
+# corrections.
+
+
+# Do sales change over time (per month)?
+monthly <- df_clean %>%
+  group_by(YEAR, MONTH) %>%
+  summarise(Total = sum(RETAIL.SALES, na.rm = TRUE), .groups = "drop") %>%
+  mutate(DATE = as.Date(paste(YEAR, MONTH, "01", sep = "-")))
+
+ggplot(monthly, aes(DATE, Total)) +
+  geom_line(colour = "steelblue") +
+  geom_point(colour = "steelblue") +
+  labs(title = "Monthly total retail sales", x = "Month", y = 
+         "Total retail sales") +
+  theme_minimal()
+
+# Observation: 
+# the graphic visualization shows a high spike in the
+# lates of 2017, this could be due to a major discussion about alcohol
+# sales in Montgomery County. 
+# Another unusual observation was the sudden decrease in retail sales towards 
+# the end of 2019. This decline may be associated with the COVID-19 pandemic 
+# and the growing concerns about person-to-person contact.
+
+
+
+
+
+
+
 
