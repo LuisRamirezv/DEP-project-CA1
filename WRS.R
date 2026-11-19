@@ -480,32 +480,50 @@ ggplot(sales_long, aes(x = Dataset, y = Value, fill = Dataset)) +
 # df_clean is used for totals and counts (outliers are real sales)
 # df_no_outliers is used for distributions and relationships.
 
-df_clean <- df_clean %>%
-  mutate(DATE = as.Date(paste(YEAR, MONTH, "01", sep = "-")))
+## Variations with one variable.
 
-df_no_outliers <- df_no_outliers %>%
-  mutate(DATE = as.Date(paste(YEAR, MONTH, "01", sep = "-")))
+# Q1. Which type of alcohol is sold the most?
+alcohol <- df_clean %>%
+  filter(ITEM.TYPE %in% c("BEER", "WINE", "LIQUOR", "KEGS")) %>%
+  group_by(ITEM.TYPE) %>%
+  summarise(Total_Sales = sum(RETAIL.SALES, na.rm = TRUE))
 
-# Variation with one variable.
-
-# Q1 - How are the sales values distributed?
-df_no_outliers %>%
-  select(all_of(sales_columns)) %>%
-  pivot_longer(everything(), names_to = "Variable", values_to = "Value") %>%
-  filter(Value > 0) %>%
-  ggplot(aes(Value)) +
-  geom_histogram(bins = 40, fill = "steelblue") +
-  facet_wrap(~ Variable, scales = "free") +
-  scale_x_log10() +
-  labs(title = "Q1. Distribution of positive sales values", x = "Value (log10)") +
+ggplot(alcohol, aes(x = reorder(ITEM.TYPE, -Total_Sales), y = Total_Sales)) +
+  geom_col(fill = "steelblue") +
+  labs(title = "Total retail sales by alcohol type",
+       x = "Alcohol type", y = "Total retail sales") +
   theme_minimal()
 
 
+alcohol <- arrange(alcohol, desc(Total_Sales))
+alcohol   # prints the quantity of each type
+
+# Liquor refers to Spirit drinks
+
+# Q2 How many records are there in each year?
+ggplot(df_clean, aes(x = factor(YEAR))) +
+  geom_bar(fill = "steelblue") +
+  geom_text(stat = "count", aes(label = format(after_stat(count), big.mark = ",")),
+            vjust = -0.5) +
+  labs(title = "Number of records per year", x = "Year", y = "Records") +
+  theme_minimal() 
 
 
 
+## Variations between two variables
 
 
+# Q4. Are retail sales related to retail transfers?
+# Only positive values, with a random sample of 20000 points.
+scatter_data <- subset(df_no_outliers, RETAIL.SALES > 0 & RETAIL.TRANSFERS > 0)
+set.seed(123)
+scatter_data <- slice_sample(scatter_data, n = 20000)
 
-
+ggplot(scatter_data, aes(RETAIL.TRANSFERS, RETAIL.SALES)) +
+  geom_point(alpha = 0.15, colour = "steelblue") +
+  geom_smooth(method = "lm", colour = "tomato", se = FALSE) +
+  scale_x_log10() +
+  scale_y_log10() +
+  labs(title = "Q4. Retail sales vs retail transfers (log10)") +
+  theme_minimal()
 
