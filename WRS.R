@@ -326,10 +326,179 @@ df_clean %>%
 # The remaining seven missing values belong to RETAIL.SALES, and I will keep
 # as NA to avoid introducing incorrect assumptions into the dataset.
 
+##===========================================================================##
+## OUTLIER DETECTION
+##===========================================================================##
+
+# The variables to analyse for outliers will be "RETAIL.SALES", "RETAIL.TRANSFERS",
+# and "WAREHOUSE.SALES".
+
+# Using 1.5 as the standard IQR multiplier
+k <- 1.5
+
+# Sales variables to analyse.
+
+sales_columns <- c(
+  "RETAIL.SALES",
+  "RETAIL.TRANSFERS",
+  "WAREHOUSE.SALES"
+)
+
+# Function to detect outliers.
+
+detect_outliers <- function(x) {
+  
+  x <- x[!is.na(x) & x != 0]
+  
+  Q1 <- quantile(x, 0.25)
+  Q3 <- quantile(x, 0.75)
+  IQR_value <- IQR(x)
+  
+  lower <- Q1 - k * IQR_value
+  upper <- Q3 + k * IQR_value
+  
+  outliers <- x[x < lower | x > upper]
+  
+  data.frame(
+    Q1 = Q1,
+    Q3 = Q3,
+    IQR = IQR_value,
+    Lower_Limit = lower,
+    Upper_Limit = upper,
+    Number_Outliers = length(outliers),
+    Percentage_Outliers = round(length(outliers) / length(x) * 100, 3)
+  )
+}
+
+# Apply the function to all sales variables.
+
+outlier_results <- bind_rows(
+  lapply(sales_columns, function(variable) {
+    result <- detect_outliers(df_clean[[variable]])
+    result$Variable <- variable
+    result
+  })
+) %>%
+  select(Variable, everything())
+
+print(outlier_results)
+
+# I used the IQR method to identify potential outliers
+# in the three sales variables, and a multiplier of 1.5 was used because
+# is the standard value in tht IQR method.
+
+# Since the dataset contains many zeros values, the calculation
+# were performed using non-zero values only, preventing from affect
+# the outlier limits and allows unusual values to be identified.
 
 ##===========================================================================##
-## Handling outliers
+## HANDLING OUTLIERS
 ##===========================================================================##
+
+# Th
+
+df_no_outliers <- df_clean
+
+for (variable in sales_columns) {
+  
+  limits <- outlier_results %>%
+    filter(Variable == variable)
+  
+  df_no_outliers <- df_no_outliers %>%
+    filter(
+      is.na(.data[[variable]]) |
+        .data[[variable]] == 0 |
+        (.data[[variable]] >= limits$Lower_Limit &
+           .data[[variable]] <= limits$Upper_Limit)
+    )
+}
+
+# Comparing the number of rows before and after removing outliers.
+
+cat("Rows before:", nrow(df_clean), "\n")
+cat("Rows after:", nrow(df_no_outliers), "\n")
+cat("Rows removed:", nrow(df_clean) - nrow(df_no_outliers), "\n")
+
+# Comparing numerical summaries.
+
+summary(df_clean[sales_columns])
+summary(df_no_outliers[sales_columns])
+
+##===========================================================================##
+## OUTLIER VISUALISATION
+##===========================================================================##
+
+# Preparing data for the boxplots.
+
+sales_before <- df_clean %>%
+  select(all_of(sales_columns)) %>%
+  mutate(Dataset = "Before")
+
+sales_after <- df_no_outliers %>%
+  select(all_of(sales_columns)) %>%
+  mutate(Dataset = "After")
+
+sales_long <- bind_rows(sales_before, sales_after) %>%
+  pivot_longer(
+    cols = all_of(sales_columns),
+    names_to = "Variable",
+    values_to = "Value"
+  ) %>%
+  filter(!is.na(Value), Value != 0)
+
+# Creating boxplots to compare before and after.
+
+ggplot(sales_long, aes(x = Dataset, y = Value, fill = Dataset)) +
+  geom_boxplot(coef = k, outlier.colour = "red", outlier.size = 1) +
+  facet_wrap(~ Variable) +
+  coord_trans(y = "pseudo_log") +
+  scale_x_discrete(limits = c("Before", "After")) +
+  scale_y_continuous(breaks = c(-1000, -10, 0, 10, 100, 1000, 10000)) +
+  scale_fill_manual(values = c("Before" = "tomato", "After" = "steelblue")) +
+  labs(
+    title = "Sales Outliers Before and After Cleaning",
+    subtitle = paste0("IQR method (", k, " x IQR) on non-zero values, pseudo-log axis"),
+    x = NULL,
+    y = "Sales Value"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+# The bloxplot compare the sales distributions before
+# and after oultier removal
+
+# The red and blue boxes represent the datasets before
+# and after cleaning, respectively, according to the
+# default ggplot colour palette
+
+# I created a separately displayed variable to make it easy for comparison
+
+##===========================================================================##
+## EXPLORATORY DATA ANALYSIS (EDA)
+##===========================================================================##
+
+# df_clean is used for totals and counts (outliers are real sales)
+# df_no_outliers is used for distributions and relationships.
+
+df_clean <- df_clean %>%
+  mutate(DATE = as.Date(paste(YEAR, MONTH, "01", sep = "-")))
+
+df_no_outliers <- df_no_outliers %>%
+  mutate(DATE = as.Date(paste(YEAR, MONTH, "01", sep = "-")))
+
+# Variation with one variable.
+
+# Q1 - How are the sales values distributed?
+df_no_outliers %>%
+  select(all_of(sales_columns)) %>%
+  pivot_longer(everything(), names_to = "Variable", values_to = "Value") %>%
+  filter(Value > 0) %>%
+  ggplot(aes(Value)) +
+  geom_histogram(bins = 40, fill = "steelblue") +
+  facet_wrap(~ Variable, scales = "free") +
+  scale_x_log10() +
+  labs(title = "Q1. Distribution of positive sales values", x = "Value (log10)") +
+  theme_minimal()
 
 
 
