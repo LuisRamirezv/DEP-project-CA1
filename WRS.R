@@ -13,7 +13,32 @@
 # sales patterns, and investigate differences between product categories
 # and suppliers.
 ##===========================================================================##
-
+#
+# DATASET.
+#
+# Title: Warehouse and Retail Sales.
+# URL: https://catalog.data.gov/dataset/warehouse-and-retail-sales
+#
+# The dataset records monthly sales and product movement in Montgomery County, 
+# Maryland, including supplier names, item descriptions, product types, retail 
+# sales, retail transfers, and warehouse sales.
+#
+# PROBLEM DOMAIN.
+#
+# In Montgomery County, Maryland, products from different suppliers are sent
+# from warehouse to retail stores (transfers) and sold in the stores (retail sales)
+# or directly from the warehouse (warehouse sales).
+#
+# MOTIVATION.
+#
+# Understanding how products move between warehouse and stores helps to plan
+# stock, avoid sending product that does not sell, and identify the categories
+# and suppliers that matter most.
+#
+#
+##===========================================================================##
+#
+#
 # Installing packages
 install.packages(c("tidyverse", "skimr"))
 
@@ -132,8 +157,6 @@ Filter(function(x) x > 0, blank_counts_clean)
 
 dim(df_clean)
 # the dimension are the same that in the beginning
-
-
 
 ##===========================================================================##
 ## Changing data types
@@ -397,7 +420,9 @@ print(outlier_results)
 ## HANDLING OUTLIERS
 ##===========================================================================##
 
-# Th
+# Removing outliers from the sales variables using the calculated IQR limits and
+# missing values and zero values are kept to avoid losing valid records.
+# The cleaned dataset is stored in df_no_outliers
 
 df_no_outliers <- df_clean
 
@@ -484,7 +509,7 @@ ggplot(sales_long, aes(x = Dataset, y = Value, fill = Dataset)) +
 
 ## Variations with one variable.
 
-# Q1. Which type of alcohol is sold the most?
+####### Q1. Which type of alcohol is sold the most?
 alcohol <- df_clean %>%
   filter(ITEM.TYPE %in% c("BEER", "WINE", "LIQUOR", "KEGS")) %>%
   group_by(ITEM.TYPE) %>%
@@ -500,7 +525,7 @@ ggplot(alcohol, aes(x = reorder(ITEM.TYPE, -Total_Sales), y = Total_Sales)) +
 alcohol <- arrange(alcohol, desc(Total_Sales))
 alcohol   # prints the quantity of each type
 
-# Q2 How many records are there in each year?
+####### Q2 How many records are there in each year?
 ggplot(df_clean, aes(x = factor(YEAR))) +
   geom_bar(fill = "steelblue") +
   geom_text(stat = "count", aes(label = format(after_stat(count), big.mark = ",")),
@@ -510,7 +535,7 @@ ggplot(df_clean, aes(x = factor(YEAR))) +
 
 ## Variations between two variables
 
-# Q3. when more stock is sent to the stores (transfer), do the stores sell more?
+####### Q3. when more stock is sent to the stores (transfer), do the stores sell more?
 
 data1 <- subset(df_no_outliers, RETAIL.SALES > 0 & RETAIL.TRANSFERS > 0)
 set.seed(123)
@@ -534,7 +559,7 @@ cor(data1$RETAIL.SALES, data1$RETAIL.TRANSFERS, method = "spearman")
 # roughly in step with transfers.But transfers alone do not predict sales precisely
 # Since many records sold much more or much less than the line suggests.
 
-# Q4. Do the products that sell well in the stores also sell well from the warehouse?
+####### Q4. Do the products that sell well in the stores also sell well from the warehouse?
 
 data2 <- subset(df_no_outliers, RETAIL.SALES > 0 & WAREHOUSE.SALES > 0)
 set.seed(123)
@@ -555,9 +580,9 @@ ggplot(data2, aes(RETAIL.SALES, WAREHOUSE.SALES)) +
 # the whole plot.
 # 
 
-## Unusual patterns
+####### Unusual patterns
 
-# Which item types have negative values?
+####### UP1 - Which item types have negative values?
 neg <- subset(df_clean, RETAIL.SALES < 0 | RETAIL.TRANSFERS < 0 | WAREHOUSE.SALES < 0)
 
 ggplot(neg, aes(x = fct_infreq(ITEM.TYPE))) +
@@ -575,7 +600,7 @@ nrow(neg)   # total records with a negative value
 # corrections.
 
 
-# Do sales change over time (per month)?
+####### UP2 -  Do sales change over time (per month)?
 monthly <- df_clean %>%
   group_by(YEAR, MONTH) %>%
   summarise(Total = sum(RETAIL.SALES, na.rm = TRUE), .groups = "drop") %>%
@@ -589,17 +614,121 @@ ggplot(monthly, aes(DATE, Total)) +
   theme_minimal()
 
 # Observation: 
-# the graphic visualization shows a high spike in the
-# lates of 2017, this could be due to a major discussion about alcohol
-# sales in Montgomery County. 
-# Another unusual observation was the sudden decrease in retail sales towards 
-# the end of 2019. This decline may be associated with the COVID-19 pandemic 
-# and the growing concerns about person-to-person contact.
+# Retail sales have a high peak at the end of 2017, which is probably the
+# holiday season. January is low in each year (2018, 2019 and 2020), so the
+# drop at the start of 2020 looks seasonal and happened before the COVID-19
+# restrictions of March 2020. Sales were high again in February-March 2020 and
+# fell afterwards, which may be related to the pandemic. 
+# There is also a gap of several years in the data, so the long straight line 
+# in the plot only joins two separate periods.
 
+##===========================================================================##
+## ONE-HOT ENCODING
+##===========================================================================##
 
+# One-hot encoding is done by transforming the variable ITEM.TYPE, because
+# it has fewer categories, and no order between them.
 
+# The 7 records with missing RETAIL.SALES values were excluded before encoding 
+# to prepare the data for aonther analysis.
 
+df_enc <- df_no_outliers %>%
+  filter(!is.na(RETAIL.SALES))
 
+onehot <- model.matrix(~ ITEM.TYPE - 1, data = df_enc) %>%
+  as.data.frame()
 
+colnames(onehot) <- gsub("ITEM.TYPE", "TYPE_", colnames(onehot))
 
+head(onehot)
+colSums(onehot)
 
+##===========================================================================##
+## PRINCIPAL COMPONENT ANALYSIS (PCA)
+##===========================================================================##
+
+# Selecting the numeric variables and the one-hot encoded columns.
+# This will allows me to include both sales information and product
+# categories in the PCA analysis
+
+pca_data <- cbind(df_enc[, c("YEAR", "MONTH", sales_columns)], onehot)
+
+# Removing variables with zero variance because the have the same value
+# in every row, and they will not provide any useful information.
+pca_data <- pca_data[, sapply(pca_data, var) > 0]
+
+# Variables are scaled because they have different units.
+pca <- prcomp(pca_data, scale. = TRUE)
+
+#Checking how much of the total variance is explained by each component
+summary(pca)
+
+# Variance explained and number of components for 80%.
+var_exp <- pca$sdev^2 / sum(pca$sdev^2)
+cum_var <- cumsum(var_exp)
+n_pc <- which(cum_var >= 0.8)[1]
+n_pc
+
+###### V1 - PCA Screeplot ######
+
+# Creating a dataframe to prepare the screeplot.
+scree <- data.frame(PC = 1:length(var_exp), Variance = var_exp, Cumulative = cum_var)
+
+# Visualizing the screeplot
+ggplot(scree, aes(PC)) +
+  geom_col(aes(y = Variance), fill = "steelblue") +
+  geom_line(aes(y = Cumulative), colour = "tomato") +
+  geom_point(aes(y = Cumulative), colour = "tomato") +
+  geom_hline(yintercept = 0.8, linetype = "dashed") +
+  scale_x_continuous(breaks = scree$PC) +
+  labs(title = "Scree plot", x = "Principal component",
+       y = "Proportion of variance") +
+  theme_minimal()
+
+# Cheking the Loadings of the first four components.
+round(pca$rotation[, 1:4], 2)
+
+loadings <- as.data.frame(pca$rotation[, 1:4])
+loadings$Feature <- rownames(loadings)
+loadings <- pivot_longer(loadings, -Feature, names_to = "PC", values_to = "Loading")
+
+###### V2 - PCA Heatmap ######
+
+# Creating a heatmap t compare the contribution of each variable
+# Blue represents positive loading, while red represents negative loading.
+
+ggplot(loadings, aes(PC, Feature, fill = Loading)) +
+  geom_tile() +
+  geom_text(aes(label = round(Loading, 2)), size = 3) +
+  scale_fill_gradient2(low = "tomato", mid = "white", high = "steelblue") +
+  labs(title = "PCA loadings", x = NULL, y = NULL) +
+  theme_minimal()
+
+# Records on PC1 and PC2 (sample of 5000).
+scores <- data.frame(pca$x[, 1:2], ITEM.TYPE = df_enc$ITEM.TYPE)
+set.seed(123)
+scores <- slice_sample(scores, n = 5000)
+
+###### V3 - PCA Scatter Plot ######
+
+# Creating a scatter plot using the first two principal components.
+# Different colors represent different items categories.
+
+ggplot(scores, aes(PC1, PC2, colour = ITEM.TYPE)) +
+  geom_point(alpha = 0.5) +
+  labs(title = "Records on the first two principal components") +
+  theme_minimal()
+
+# Observation:
+# Wine and liquor from two separate bands, and beer and kegs from small
+# clusters close to each other, so the first two components separate the main
+# item types.
+
+# Reduced dataset.
+pca_reduced <- pca$x[, 1:n_pc]
+
+# Comparing dimensions before and after PCA
+# This will help me to show how many variables were reduced while
+# retaining the selected amount of information.
+dim(pca_data)     # before PCA
+dim(pca_reduced)  # after PCA
