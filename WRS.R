@@ -533,7 +533,7 @@ ggplot(df_clean, aes(x = factor(YEAR))) +
   labs(title = "Number of records per year", x = "Year", y = "Records") +
   theme_minimal() 
 
-## Variations between two variables
+## Covariations between two variables
 
 ####### Q3. when more stock is sent to the stores (transfer), do the stores sell more?
 
@@ -546,7 +546,7 @@ ggplot(data1, aes(RETAIL.TRANSFERS, RETAIL.SALES)) +
   geom_smooth(method = "lm", colour = "tomato", se = FALSE) +
   scale_x_log10() +
   scale_y_log10() +
-  labs(title = "Retail sales vs retail transfers (log10)",
+  labs(title = "Retail sales vs retail transfers (log 10 scale)",
        x = "Retail transfers", y = "Retail sales") +
   theme_minimal()
 
@@ -596,7 +596,7 @@ nrow(neg)   # total records with a negative value
 # Observation: 
 # the plot shows that negative values appear in evey item, but they are
 # concentrated in whine, which has more than twice as many as any other 
-# type. Those negative sales and transfer could be possible returns or 
+# type. Those negative sales and transfer may be possible returns or 
 # corrections.
 
 
